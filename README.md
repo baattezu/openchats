@@ -1,4 +1,4 @@
-# Messaging Service
+# OpenChats
 
 An internal shared inbox and CRM messaging API. React + Vite, Go, and **PostgreSQL from day one**. The interface follows the supplied wireframe: user/API controls, channels, message feed, and a conversation pane.
 
