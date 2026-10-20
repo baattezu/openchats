@@ -1,0 +1,9 @@
+# Instagram official
+
+Use a Meta app with Instagram API/Instagram Login messaging access for professional business/creator accounts. Set `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET` from the Instagram Login product setup (separate from the WhatsApp/Facebook app credentials), plus `META_GRAPH_VERSION` and `META_WEBHOOK_VERIFY_TOKEN` and register `PUBLIC_URL/api/v1/oauth/instagram/callback` exactly as a valid OAuth redirect. Configure the same Meta webhook callback/verification endpoint as WhatsApp and subscribe to Instagram messaging events.
+
+Connect through Instagram OAuth. State is one-time and tied to the initiating logged-in admin. The backend exchanges the code, obtains a long-lived token, resolves the account and subscribes to supported events. The service periodically attempts token refresh near expiration; failure requires reconnection. See [Meta’s Instagram collection](https://www.postman.com/meta/workspace/instagram/documentation/23987686-9386f468-7714-490f-9bfc-9442db5c8f00).
+
+v1 permits replies within the standard 24-hour inbound window. No human-agent exception, cold outreach, consumer-account password login, unofficial Instagram client or group management. Text and supported attachment operations are available; sending an attachment and caption together is rejected so users send them separately. Instagram fetches outgoing media through a short-lived signed HTTPS URL; the hosting domain must be public and reachable by Meta. The URL expires after ten minutes and grants access only to its attachment.
+
+Webhook media downloads use a bounded client with public-IP validation and no redirects. Unsupported/unavailable attachments remain visible as metadata/fallback text. v1 persists echoed messages and deletion events; edits/receipts outside handled payloads are not promised. Live app access depends on Meta permission/review configuration.

@@ -1,0 +1,36 @@
+# Server-like local run on top of compose.dev.yaml (same Postgres :5436 and volume).
+# The client is built into the web image and served by Caddy together with /api,
+# exactly as in production; no Vite or `go run`. Open http://localhost:5175.
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://messaging:${POSTGRES_PASSWORD}@db:5432/messaging?sslmode=disable
+      API_ADDR: :8080
+      MEDIA_DIR: /data/media
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - media_data:/data/media
+    healthcheck:
+      test: [CMD, /service, health]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    security_opt: [no-new-privileges:true]
+  web:
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+    environment:
+      # Plain HTTP site address; PUBLIC_URL in .env must stay http://localhost:5175
+      DOMAIN: ':80'
+    ports:
+      - 127.0.0.1:5175:80
+    depends_on: [api]
+volumes:
+  media_data:

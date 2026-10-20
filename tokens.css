@@ -1,0 +1,36 @@
+/* Hallmark · theme: Cobalt · audience: internal team · tone: utilitarian */
+:root {
+  --color-paper: #f5f6f8;
+  --color-surface: #fff;
+  --color-ink: #20252b;
+  --color-muted: #606874;
+  --color-rule: #e3e6eb;
+  --color-accent: #245be8;
+  --color-accent-soft: #eef3ff;
+  --color-good: #247b55;
+  --color-danger: #ba3c3c;
+  --color-warning: #94630e;
+  --color-warning-soft: #fff6e4;
+  --color-whatsapp: #24895b;
+  --color-telegram: #378acb;
+  --color-instagram: #a14c91;
+  --color-chat: #f2f4f7;
+  --color-overlay: #20252b66;
+  --font-body: "Inter Variable", Arial, sans-serif;
+  --font-display: "Space Grotesk Variable", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 8px;
+  --radius-small: 5px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur: 140ms;
+  --text-small: 12px;
+  --text-body: 14px;
+  --text-title: 20px;
+  --rule: 1px solid var(--color-rule);
+}

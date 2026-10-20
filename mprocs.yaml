@@ -1,0 +1,7 @@
+procs:
+  postgres:
+    shell: make infra-up && docker compose --env-file .env -f infra/compose.dev.yaml logs -f db
+  api:
+    shell: make dev-api
+  client:
+    shell: make dev-client

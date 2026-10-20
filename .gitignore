@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+data/
+backups/
+bin/
+client/node_modules/
+client/dist/
+client/test-results/
+client/playwright-report/
+*.tsbuildinfo
+.DS_Store
+coverage.out
+
+__pycache__/
+*.pyc

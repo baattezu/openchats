@@ -1,0 +1,11 @@
+# WhatsApp official
+
+Configure a Meta developer app and Facebook Login for Business/Embedded Signup configuration. Supply `META_APP_ID`, `META_APP_SECRET`, `META_SIGNUP_CONFIG_ID`, the pinned `META_GRAPH_VERSION`, and a random `META_WEBHOOK_VERIFY_TOKEN`. Use public HTTPS `PUBLIC_URL` and configure allowed app domains/origins and redirect settings in Meta.
+
+Set the Meta webhook callback to `PUBLIC_URL/api/v1/provider-webhooks/meta` with the verify token. Subscribe to WhatsApp messages. Choose WA official in the UI, authorize the account in Meta’s popup, and select the business/number. Enter the existing six-digit WhatsApp two-step PIN, or choose a PIN for a new number and keep it in your password manager. The backend exchanges the code, checks that the selected phone belongs to the granted WABA, registers the number with the PIN, and subscribes the app. The PIN is transient and is not persisted or logged. Registration failures are reported instead of claiming the connector is ready. See [Meta’s registration endpoint](https://www.postman.com/meta/whatsapp-business-platform/request/mk4p87j/register-phone-number).
+
+Meta app review, advanced permissions and Tech Provider/business eligibility can be required before onboarding external businesses. Use [Meta’s Tech Provider sample](https://github.com/fbsamples/business-messaging-sample-tech-provider-app) and [Embedded Signup documentation](https://www.postman.com/meta/whatsapp-business-platform/documentation/du6gzjv/embedded-signup). The service cannot grant those approvals.
+
+Free-form replies require a current 24-hour service window; outside it select an approved template. The UI lists existing approved text-only templates. The REST API can pass richer template components. Official WhatsApp is not uniformly paid: [Meta’s pricing page](https://business.whatsapp.com/products/platform-pricing) describes free service replies and per-message/category/market pricing. Do not hardcode costs or promise an exact bill.
+
+Groups, edits/deletes and history import are not exposed on this Cloud connector in v1. Eligibility-gated APIs must be verified separately before enabling new capabilities. Disconnect removes app subscription using the granted token, then deletes the local token. Revoke the application grant in Meta for full account-owner control over remaining permissions.
