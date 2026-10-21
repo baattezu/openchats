@@ -51,7 +51,13 @@ elif mode == 'restore':
             run('exec', '-T', 'db', 'pg_restore', '-U', 'messaging', '-d', 'messaging', '--clean', '--if-exists', stdin=f)
         run('cp', str(contents / 'media') + '/.', 'api:/data/media')
         run('run', '--rm', '--no-deps', '--user', '0', '--entrypoint', 'chown', 'api', '-R', '10001:10001', '/data/media')
+        # Переезд/восстановление: та же сессия WhatsApp может ещё жить на старом сервере.
+        # Две копии вытесняют друг друга, и это прямой путь к бану, поэтому личные
+        # сессии поднимаются на паузе — возобновить вручную, когда старый сервер остановлен.
+        run('exec', '-T', 'db', 'psql', '-U', 'messaging', '-d', 'messaging', '-c',
+            "UPDATE connections SET status='paused', detail='Restored from backup: stop the old server first, then resume manually' "
+            "WHERE provider IN ('whatsapp_web','telegram') AND status<>'disconnected'")
         run('start', 'api')
-    print('Restore complete. Verify account sessions and attachment access.')
+    print('Restore complete. WhatsApp/Telegram sessions are PAUSED: stop the old server, then resume them manually.')
 else:
     raise SystemExit('Expected backup or restore')

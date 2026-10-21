@@ -1516,7 +1516,12 @@ function ConnectDialog({
   );
 }
 
-type Key = { id: string; name: string; prefix: string };
+type Key = {
+  id: string;
+  name: string;
+  prefix: string;
+  manage_connections: boolean;
+};
 type Member = { id: string; name: string; email: string; role: string };
 type Webhook = { id: string; url: string; enabled: boolean };
 type Job = {
@@ -1542,6 +1547,7 @@ function WorkspaceDialog({
     [deliveries, setDeliveries] = useState<Delivery[]>([]),
     [secret, setSecret] = useState(""),
     [input, setInput] = useState(""),
+    [manage, setManage] = useState(false),
     [busy, setBusy] = useState(false),
     [role, setRole] = useState("member"),
     [error, setError] = useState("");
@@ -1630,13 +1636,18 @@ function WorkspaceDialog({
         <>
           <p className="muted">
             Keys let a CRM read conversations and send messages. They cannot
-            administer the workspace.
+            administer the workspace. A key with &quot;Manage connections&quot;
+            may also pair, pause and unlink accounts — the WhatsApp guard still
+            applies.
           </p>
           {keys.map((k) => (
             <div className="settings-row" key={k.id}>
               <div className="info">
                 <strong>{k.name}</strong>
-                <small>{k.prefix}••••••••</small>
+                <small>
+                  {k.prefix}••••••••
+                  {k.manage_connections ? " · manages connections" : ""}
+                </small>
               </div>
               <button
                 className="danger icon"
@@ -1660,9 +1671,11 @@ function WorkspaceDialog({
               void execute(async () => {
                 const v = await api<{ token: string }>("/api-keys", "POST", {
                   name: input,
+                  manage_connections: manage,
                 });
                 setSecret(v.token);
                 setInput("");
+                setManage(false);
               });
             }}
           >
@@ -1674,6 +1687,14 @@ function WorkspaceDialog({
                 placeholder="e.g. Stepline CRM"
                 required
               />
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={manage}
+                onChange={(e) => setManage(e.target.checked)}
+              />
+              Manage connections (pair / unlink accounts)
             </label>
             <button className="primary" disabled={busy}>
               Create key

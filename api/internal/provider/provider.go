@@ -85,7 +85,17 @@ type Callbacks struct {
 	LoadSession    func() ([]byte, error)
 	SaveCheckpoint func([]byte) error
 	LoadCheckpoint func() ([]byte, error)
+	// Halt останавливает сессию по решению провайдера (бан, сессию открыли в другом
+	// месте, WhatsApp отвязал устройство) и НЕ даёт ей подняться самой: дальше только
+	// ручное действие администратора. block — запрет новой привязки на этот срок,
+	// UseRelinkCooldown — стандартный срок из конфигурации. wipe стирает сессию.
+	Halt func(status, detail string, block time.Duration, wipe bool)
 }
+
+// UseRelinkCooldown просит Halt запретить новую привязку на стандартный срок
+// WA_RELINK_COOLDOWN_HOURS.
+const UseRelinkCooldown time.Duration = -1
+
 type Adapter interface {
 	Start(context.Context) error
 	Send(context.Context, Send) (string, error)

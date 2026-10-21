@@ -47,7 +47,27 @@ func NewWhatsApp(ctx context.Context, container *sqlstore.Container, jid string,
 	}
 	w.Client = whatsmeow.NewClient(d, nil)
 	w.Client.AddEventHandler(w.handle)
+	// Сам whatsmeow переподключается бесконечно с растущей паузой. Сеть моргнула —
+	// пусть переподключается, но если связи нет ~7 минут (20 попыток), это уже не
+	// «моргнула»: останавливаемся и ждём человека, а не долбим серверы WhatsApp.
+	w.Client.AutoReconnectHook = func(error) bool {
+		if w.Client.AutoReconnectErrors >= maxAutoReconnects {
+			w.halt("paused", "Could not reconnect for several minutes; stopped to avoid hammering WhatsApp. Resume manually.", 0, false)
+			return false
+		}
+		return true
+	}
 	return &w, nil
+}
+
+const maxAutoReconnects = 20
+
+func (w *WhatsApp) halt(status, detail string, block time.Duration, wipe bool) {
+	if w.CB.Halt != nil {
+		w.CB.Halt(status, detail, block, wipe)
+		return
+	}
+	w.CB.Status(status, detail, "")
 }
 func (w *WhatsApp) Start(ctx context.Context) error {
 	if w.Client.Store.ID == nil {
@@ -70,7 +90,8 @@ func (w *WhatsApp) Start(ctx context.Context) error {
 				if x.Event == "code" {
 					w.CB.Status("pairing", "Scan with WhatsApp → Linked devices", "")
 				} else if x.Event == "timeout" {
-					w.CB.Status("needs_auth", "QR expired; reconnect to pair", "")
+					// QR не отсканировали — сокет не держим и новый QR сами не заводим.
+					w.halt("needs_auth", "QR expired. Start pairing again when the phone is at hand.", 0, false)
 				}
 			}
 		}()
@@ -100,8 +121,27 @@ func (w *WhatsApp) handle(raw any) {
 	case *events.Disconnected:
 		w.CB.Status("reconnecting", "Connection interrupted; waiting for library reconnect", "")
 	case *events.LoggedOut:
-		_ = w.CB.SaveSession(nil)
-		w.CB.Status("needs_auth", "Linked device was logged out; pair again", "")
+		// Устройство отвязали с телефона или WhatsApp вышел сам. Новая привязка — не
+		// раньше обычного запрета после отвязки.
+		w.halt("needs_auth", "WhatsApp logged this device out. Pairing is locked for a cooldown period.", UseRelinkCooldown, true)
+	case *events.StreamReplaced:
+		// Та же сессия подключилась из другого процесса — почти всегда второй сервер
+		// при переезде. Две копии, вытесняющие друг друга, — прямой путь к бану, поэтому
+		// эта копия останавливается и ждёт, пока человек разберётся.
+		w.halt("paused", "This session connected from another server or process. Stopped here to avoid a conflict: keep only one server running, then resume manually.", 0, false)
+	case *events.TemporaryBan:
+		block := e.Expire
+		if block < 24*time.Hour {
+			block = 24 * time.Hour
+		}
+		w.halt("paused", e.String()+". Sending is stopped; do not reconnect until the ban expires.", block, false)
+	case *events.ClientOutdated:
+		w.halt("paused", "WhatsApp rejected this client version. Update the service before resuming.", 0, false)
+	case *events.ConnectFailure:
+		switch e.Reason {
+		case events.ConnectFailureMainDeviceGone, events.ConnectFailureUnknownLogout, events.ConnectFailureTempBanned:
+			w.halt("paused", fmt.Sprintf("WhatsApp refused the connection (%d %s). Do not reconnect; check the phone app.", int(e.Reason), e.Message), 7*24*time.Hour, false)
+		}
 	case *events.Receipt:
 		status := "delivered"
 		if string(e.Type) == "read" || string(e.Type) == "read-self" {

@@ -12,6 +12,9 @@ var initial string
 //go:embed 002_reliability.sql
 var reliability string
 
+//go:embed 003_wa_guard.sql
+var waGuard string
+
 func Run(ctx context.Context, pool *pgxpool.Pool) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -24,7 +27,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool) error {
 	if _, err = tx.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations(version integer PRIMARY KEY)`); err != nil {
 		return err
 	}
-	for i, migration := range []string{initial, reliability} {
+	for i, migration := range []string{initial, reliability, waGuard} {
 		version := i + 1
 		var exists bool
 		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)`, version).Scan(&exists); err != nil {

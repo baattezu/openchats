@@ -15,7 +15,7 @@ import (
 )
 
 func (a *Server) keys(w http.ResponseWriter, r *http.Request, p Principal) error {
-	b, e := a.Store.JSON(r.Context(), `SELECT COALESCE(jsonb_agg(x),'[]') FROM(SELECT id,name,prefix,created_at FROM api_keys WHERE workspace_id=$1 ORDER BY created_at)x`, p.Workspace)
+	b, e := a.Store.JSON(r.Context(), `SELECT COALESCE(jsonb_agg(x),'[]') FROM(SELECT id,name,prefix,manage_connections,created_at FROM api_keys WHERE workspace_id=$1 ORDER BY created_at)x`, p.Workspace)
 	if e != nil {
 		return e
 	}
@@ -24,7 +24,8 @@ func (a *Server) keys(w http.ResponseWriter, r *http.Request, p Principal) error
 }
 func (a *Server) createKey(w http.ResponseWriter, r *http.Request, p Principal) error {
 	var in struct {
-		Name string `json:"name"`
+		Name              string `json:"name"`
+		ManageConnections bool   `json:"manage_connections"`
 	}
 	if e := decode(w, r, &in); e != nil {
 		return e
@@ -34,7 +35,7 @@ func (a *Server) createKey(w http.ResponseWriter, r *http.Request, p Principal) 
 	}
 	token := "ms_" + secure.Token()
 	id := secure.ID()
-	_, e := a.Store.DB.Exec(r.Context(), `INSERT INTO api_keys(id,workspace_id,name,token_hash,prefix) VALUES($1,$2,$3,$4,$5)`, id, p.Workspace, in.Name, secure.Hash(token), token[:11])
+	_, e := a.Store.DB.Exec(r.Context(), `INSERT INTO api_keys(id,workspace_id,name,token_hash,prefix,manage_connections) VALUES($1,$2,$3,$4,$5,$6)`, id, p.Workspace, in.Name, secure.Hash(token), token[:11], in.ManageConnections)
 	if e != nil {
 		return e
 	}

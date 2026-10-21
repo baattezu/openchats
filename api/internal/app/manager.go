@@ -49,7 +49,12 @@ func (m *Manager) Start() error {
 		}
 		m.wa = w
 	}
-	rows, e := m.s.DB.Query(m.ctx, `SELECT id,workspace_id FROM connections WHERE status NOT IN ('disconnected','paused')`)
+	// Новая привязка WhatsApp (QR) никогда не начинается сама: после перезапуска
+	// поднимаем только уже привязанные сессии, остальные ждут действия администратора.
+	if _, e := m.s.DB.Exec(m.ctx, `UPDATE connections SET status='needs_auth',detail='Not paired. Start pairing manually from settings.' WHERE provider='whatsapp_web' AND status NOT IN ('disconnected','paused') AND session_data IS NULL`); e != nil {
+		return e
+	}
+	rows, e := m.s.DB.Query(m.ctx, `SELECT id,workspace_id FROM connections WHERE status NOT IN ('disconnected','paused') AND NOT (provider='whatsapp_web' AND session_data IS NULL)`)
 	if e != nil {
 		return e
 	}
@@ -88,7 +93,7 @@ func (m *Manager) Connect(id, w string) error {
 	if e != nil {
 		return e
 	}
-	cb := provider.Callbacks{Event: func(ctx context.Context, v provider.Event) error { return m.s.Ingest(ctx, c, v) }, Status: func(s, d, i string) { m.status(c, s, d, i) }, SaveSession: func(b []byte) error { return m.s.SaveBlob(m.ctx, id, "session_data", b) }, LoadSession: func() ([]byte, error) { return m.s.LoadBlob(m.ctx, id, "session_data") }, SaveCheckpoint: func(b []byte) error { return m.s.SaveBlob(m.ctx, id, "checkpoint", b) }, LoadCheckpoint: func() ([]byte, error) { return m.s.LoadBlob(m.ctx, id, "checkpoint") }}
+	cb := provider.Callbacks{Event: func(ctx context.Context, v provider.Event) error { return m.s.Ingest(ctx, c, v) }, Status: func(s, d, i string) { m.status(c, s, d, i) }, SaveSession: func(b []byte) error { return m.s.SaveBlob(m.ctx, id, "session_data", b) }, LoadSession: func() ([]byte, error) { return m.s.LoadBlob(m.ctx, id, "session_data") }, SaveCheckpoint: func(b []byte) error { return m.s.SaveBlob(m.ctx, id, "checkpoint", b) }, LoadCheckpoint: func() ([]byte, error) { return m.s.LoadBlob(m.ctx, id, "checkpoint") }, Halt: func(s, d string, block time.Duration, wipe bool) { m.halt(c, s, d, block, wipe) }}
 	var adapter provider.Adapter
 	ctx, cancel := context.WithCancel(m.ctx)
 	switch c.Provider {
@@ -99,6 +104,14 @@ func (m *Manager) Connect(id, w string) error {
 		}
 		b, e := cb.LoadSession()
 		if e != nil {
+			cancel()
+			return e
+		}
+		kind := "resume"
+		if len(b) == 0 {
+			kind = "pair"
+		}
+		if e = m.guardStart(m.ctx, c, kind); e != nil {
 			cancel()
 			return e
 		}

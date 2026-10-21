@@ -21,6 +21,10 @@ import (
 type Principal struct {
 	ID, Workspace, Role, Name, Email string
 	API                              bool
+	// ManageConnections — API-ключ с правом привязывать и отвязывать аккаунты
+	// (CRM ведёт привязку WhatsApp из своих настроек). Только для routes, обёрнутых
+	// в connectionAdmin; остальные админские routes ключу по-прежнему закрыты.
+	ManageConnections bool
 }
 type Server struct {
 	Store   *store.Store
@@ -89,9 +93,10 @@ func (a *Server) Router() http.Handler {
 	m.HandleFunc("POST /api/v1/invitations", a.wrap(a.invite, true, true))
 	m.HandleFunc("DELETE /api/v1/members/{id}", a.wrap(a.removeMember, true, true))
 	m.HandleFunc("GET /api/v1/connections", a.wrap(a.connections, true, false))
-	m.HandleFunc("POST /api/v1/connections", a.wrap(a.createConnection, true, true))
-	m.HandleFunc("POST /api/v1/connections/{id}/challenge", a.wrap(a.challenge, true, true))
-	m.HandleFunc("POST /api/v1/connections/{id}/disconnect", a.wrap(a.disconnect, true, true))
+	m.HandleFunc("GET /api/v1/wa-guard", a.wrap(a.waGuard, true, false))
+	m.HandleFunc("POST /api/v1/connections", a.wrap(connectionAdmin(a.createConnection), true, false))
+	m.HandleFunc("POST /api/v1/connections/{id}/challenge", a.wrap(connectionAdmin(a.challenge), true, false))
+	m.HandleFunc("POST /api/v1/connections/{id}/disconnect", a.wrap(connectionAdmin(a.disconnect), true, false))
 	m.HandleFunc("DELETE /api/v1/connections/{id}", a.wrap(a.deleteConnection, true, true))
 	m.HandleFunc("POST /api/v1/connections/{id}/import", a.wrap(a.importHistory, true, true))
 	m.HandleFunc("GET /api/v1/connections/{id}/templates", a.wrap(a.templates, true, false))
@@ -178,6 +183,16 @@ func (a *Server) wrap(h handler, auth, admin bool) http.HandlerFunc {
 		}
 	}
 }
+
+// connectionAdmin пускает администратора или API-ключ с manage_connections.
+func connectionAdmin(h handler) handler {
+	return func(w http.ResponseWriter, r *http.Request, p Principal) error {
+		if p.API && !p.ManageConnections || !p.API && p.Role != "admin" {
+			return problem{403, "administrator access required"}
+		}
+		return h(w, r, p)
+	}
+}
 func (a *Server) principal(r *http.Request) (Principal, error) {
 	var p Principal
 	ctx := r.Context()
@@ -185,7 +200,7 @@ func (a *Server) principal(r *http.Request) (Principal, error) {
 	if strings.HasPrefix(auth, "Bearer ") {
 		p.API = true
 		p.Role = "member"
-		e := a.Store.DB.QueryRow(ctx, `SELECT id,workspace_id,name FROM api_keys WHERE token_hash=$1`, secure.Hash(strings.TrimPrefix(auth, "Bearer "))).Scan(&p.ID, &p.Workspace, &p.Name)
+		e := a.Store.DB.QueryRow(ctx, `SELECT id,workspace_id,name,manage_connections FROM api_keys WHERE token_hash=$1`, secure.Hash(strings.TrimPrefix(auth, "Bearer "))).Scan(&p.ID, &p.Workspace, &p.Name, &p.ManageConnections)
 		if e != nil {
 			return p, problem{401, "invalid API key"}
 		}

@@ -173,9 +173,16 @@ func (a *Server) disconnect(w http.ResponseWriter, r *http.Request, p Principal)
 	if e = a.Manager.Stop(r.Context(), id, true); e != nil {
 		return bad("provider logout failed; retry or revoke the session in the official app")
 	}
-	_, e = a.Store.DB.Exec(r.Context(), `UPDATE connections SET credentials=NULL,session_data=NULL,checkpoint=NULL,external_id=NULL,status='disconnected',detail='Disconnected' WHERE id=$1`, id)
+	_, e = a.Store.DB.Exec(r.Context(), `UPDATE connections SET credentials=NULL,session_data=NULL,checkpoint=NULL,external_id=NULL,identity='',status='disconnected',detail='Disconnected' WHERE id=$1`, id)
 	if e != nil {
 		return e
+	}
+	if c.Provider == guardedProvider && c.Identity != "" {
+		// Отвязали подключённый номер — новая привязка WhatsApp не раньше чем через
+		// WA_RELINK_COOLDOWN_HOURS: «отвязал и сразу привязал заново» выглядит для
+		// WhatsApp как перехват аккаунта. Отмена привязки до скана QR (identity ещё
+		// пустой) — не отвязка: устройство так и не появилось у WhatsApp.
+		a.Manager.blockPairing(r.Context(), p.Workspace, provider.UseRelinkCooldown, "unlinked by administrator")
 	}
 	a.Store.Audit(r.Context(), p.Workspace, p.ID, "connection.disconnected", id)
 	write(w, 200, map[string]bool{"ok": true})

@@ -8,6 +8,26 @@ Keep `.env` permission-restricted and outside version control. Protect `ENCRYPTI
 
 For a lost admin password, an operator must arrange a supervised password reset directly in the database with a bcrypt hash and revoke sessions; there is no unauthenticated reset API. Do not rerun bootstrap to overwrite accounts. MFA, SSO, managed password reset and per-user unread state are future work.
 
+## WhatsApp (unofficial) guard
+
+The service treats every start of a linked WhatsApp device as something WhatsApp may judge. Rules (code: `api/internal/app/guard.go`, events in `api/internal/provider/whatsapp.go`):
+
+- **No automatic pairing.** After a restart only already-linked sessions resume. A connection without a session waits in `needs_auth` until an administrator starts pairing. An expired QR code is not replaced automatically.
+- **Relink cooldown.** After an unlink (by an administrator or by WhatsApp itself) new pairing is locked for `WA_RELINK_COOLDOWN_HOURS` (default 24) for the whole workspace; deleting and recreating the connection does not bypass it. `GET /api/v1/wa-guard` shows the lock.
+- **Start limits.** At most `WA_MAX_RESUMES_PER_HOUR` (default 6) session resumes and `WA_MAX_PAIRINGS_PER_HOUR` (default 3) pairing attempts per connection per hour. Exceeding the resume limit (a crash loop, a reconnect button pressed in circles) pauses the connection.
+- **Stop, never fight.** Session opened from another process (`StreamReplaced`), temporary ban, connect refusal (locked/banned), outdated client, or ~7 minutes without a successful reconnect: the session stops and stays stopped until resumed manually. Bans also lock pairing until they expire (at least 24 hours).
+- **CRM access.** An API key created with "Manage connections" may pair, pause, resume and unlink accounts (the CRM settings screen); everything else administrative stays closed to keys.
+
+### Moving to another server
+
+1. On the old server: **Pause** WhatsApp/Telegram connections (pause keeps the linked device; do not unlink).
+2. `make backup`, copy the archive and keep the same `ENCRYPTION_KEY` (sessions are encrypted with it).
+3. Stop the old stack completely (`docker compose down`).
+4. On the new server: `make restore`. Personal sessions come up **paused** on purpose.
+5. Confirm the old server is down, then resume each connection once.
+
+Never run two servers with the same database copy at the same time: they would take the session from each other, which is the fastest way to get the number restricted.
+
 ## Pause, revoke and delete
 
 Use channel Pause to stop a live client without revoking its remote session. Reconnect resumes it. Official Meta inbound webhooks continue to be ingested while a channel is paused; pausing prevents sends. Set `STOP_ALL_SENDS=true` and restart for the global send kill switch; queued work is bounded and may eventually fail while paused. Disable `ENABLE_WHATSAPP_WEB` to stop unofficial sessions after restart. There is no automatic switch to another provider.
